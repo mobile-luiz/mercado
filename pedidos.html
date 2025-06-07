@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>📦 Pedidos Realizados</title>
+  <style>
+    :root {
+      --primary: #0066cc;
+      --secondary: #f0f0f0;
+      --bg: #f4f4f4;
+      --text: #333;
+      --accent: #25d366;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 1.8rem;
+      color: var(--primary);
+    }
+    #statusCounts {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    th, td {
+      padding: 12px 15px;
+      border: 1px solid #e0e0e0;
+    }
+    th {
+      background: var(--secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+    tr:nth-child(even) { background: #fafafa; }
+    tr:hover { background: #f1f1f1; }
+    .items-list { list-style: none; padding: 0; margin: 0; }
+    .items-list li { margin-bottom: 4px; font-size: 0.9rem; }
+    .status-cell {
+      font-weight: bold;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .page-btn {
+      padding: 6px 10px;
+      background: var(--secondary);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .page-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-voltar {
+      padding: 8px 12px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .btn-voltar:hover { background: #0052a3; }
+    /* Ações em linha e responsivas */
+    .actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .action-btn {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex: 1 1 auto;
+      text-align: center;
+    }
+    .action-btn:hover { background: #1ebe5a; }
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      .container { padding: 15px; }
+      table, thead, tbody, th, td, tr { display: block; }
+      thead tr { display: none; }
+      tr { margin-bottom: 15px; }
+      td {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+      }
+      td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        flex: 1 0 50%;
+      }
+      .items-list li { font-size: 0.85rem; }
+      .actions, .btn-voltar { width: 100%; margin-top: 6px; }
+      .action-btn { flex: 1 1 45%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📦 Pedidos Realizados</h2>
+    <div id="statusCounts">Carregando status...</div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID do Pedido</th><th>Cliente</th><th>CPF</th><th>Endereço</th>
+          <th>Referência</th><th>Data/Hora</th><th>Itens</th><th>Total (R$)</th>
+          <th>Status</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="pedidosTabela">
+        <tr><td colspan="10" style="text-align:center;padding:20px">Carregando pedidos...</td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+    <button class="btn-voltar" onclick="voltar()">⬅️ Voltar</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOYhFAUl9eytYMdLA-kyhNvrV5GrXgJQU",
+      authDomain: "mercado-8d654.firebaseapp.com",
+      databaseURL: "https://mercado-8d654-default-rtdb.firebaseio.com",
+      projectId: "mercado-8d654",
+      storageBucket: "mercado-8d654.firebasestorage.app",
+      messagingSenderId: "269749626632",
+      appId: "1:269749626632:web:8c30643a1cc52b56672ebd",
+      measurementId: "G-9DGXDT4451"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const tabela = document.getElementById('pedidosTabela');
+    const pagination = document.getElementById('pagination');
+    const statusCounts = document.getElementById('statusCounts');
+    const pageSize = 10;
+    let allPedidos = [];
+    let currentPage = 1;
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) return window.location.href = 'index.html';
+      loadPedidos();
+    });
+
+    function formatCurrency(num) {
+      return num.toFixed(2).replace('.', ',');
+    }
+
+    function formatDate(dtStr) {
+      return new Date(dtStr)
+        .toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+
+    function loadPedidos() {
+      firebase.database().ref('pedidos').once('value')
+        .then(snap => {
+          const data = snap.val() || {};
+          allPedidos = Object.entries(data)
+            // Ordena por data (descendente)
+            .sort((a, b) => new Date(b[1].data) - new Date(a[1].data));
+          currentPage = 1; // reset page
+          render();
+        })
+        .catch(err => console.error(err));
+    }
+
+    function render() {
+      // contagem de status
+      const counts = { Pendente:0, Andamento:0, Saiu:0, Entregue:0 };
+      allPedidos.forEach(([_, p]) => counts[p.status || 'Pendente']++);
+      statusCounts.innerHTML = `Pendentes: ${counts.Pendente} &nbsp;|&nbsp; Andamento: ${counts.Andamento} &nbsp;|&nbsp; Saiu: ${counts.Saiu} &nbsp;|&nbsp; Entregue: ${counts.Entregue}`;
+
+      // paginação
+      const totalPages = Math.ceil(allPedidos.length / pageSize) || 1;
+      pagination.innerHTML = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+        btn.onclick = () => { currentPage = i; render(); };
+        pagination.appendChild(btn);
+      }
+
+      // tabela
+      tabela.innerHTML = '';
+      const start = (currentPage - 1) * pageSize;
+      const slice = allPedidos.slice(start, start + pageSize);
+      if (!slice.length) {
+        tabela.innerHTML = '<tr><td colspan="10" style="text-align:center">Nenhum pedido encontrado.</td></tr>';
+        return;
+      }
+      slice.forEach(([id, pedido]) => {
+        const { cliente, itens, total, data: dt, status } = pedido;
+        const itensHtml = itens.map(i => `<li>${i.nome} (x${i.quantidade}) - R$ ${formatCurrency(i.valorUnitario)}</li>`).join('');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="ID do Pedido">${id}</td>
+          <td data-label="Cliente">${cliente.nome}</td>
+          <td data-label="CPF">${cliente.cpf || '-'}</td>
+          <td data-label="Endereço">${cliente.endereco}</td>
+          <td data-label="Referência">${cliente.referencia}</td>
+          <td data-label="Data/Hora">${formatDate(dt)}</td>
+          <td data-label="Itens"><ul class="items-list">${itensHtml}</ul></td>
+          <td data-label="Total">R$ ${formatCurrency(total)}</td>
+          <td data-label="Status" class="status-cell">${status || 'Pendente'}</td>
+          <td data-label="Ações">
+            <div class="actions">
+              <button class="action-btn" onclick="atualizarStatus('${id}','Pendente')">Pend.</button>
+              <button class="action-btn" onclick="atualizarStatus('${id}','Andamento')">And.</button>
+              <button class="action-btn" onclick="atualizarStatus('${id}','Saiu')">Saiu</button>
+              <button class="action-btn" onclick="atualizarStatus('${id}','Entregue')">Entregue</button>
+            </div>
+          </td>
+        `;
+        tabela.appendChild(tr);
+      });
+    }
+
+    function atualizarStatus(id, st) {
+      firebase.database().ref('pedidos/' + id).update({ status: st })
+        .then(loadPedidos)
+        .catch(console.error);
+    }
+
+    function voltar() { window.location.href = 'index.html'; }
+  </script>
+
+</body>
+</html>

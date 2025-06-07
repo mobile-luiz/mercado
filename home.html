@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Menu Principal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h2>🏪 Bem-vindo ao Mercadinho</h2>
+    <p>Escolha uma opção abaixo:</p>
+    <button onclick="irParaCadastro()">➕ Cadastrar Mercadoria</button>
+    <button onclick="irParaLista()">📋 Ver Lista de Mercadorias</button>
+    <button onclick="irParaPedidos()">📦 Ver Pedidos</button>
+    <button onclick="logout()">🚪 Sair</button>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOYhFAUl9eytYMdLA-kyhNvrV5GrXgJQU",
+      authDomain: "mercado-8d654.firebaseapp.com",
+      projectId: "mercado-8d654",
+      storageBucket: "mercado-8d654.firebasestorage.app",
+      messagingSenderId: "269749626632",
+      appId: "1:269749626632:web:8c30643a1cc52b56672ebd",
+      measurementId: "G-9DGXDT4451"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) {
+        window.location.href = "index.html"; // Se não estiver logado, volta pro login
+      }
+    });
+
+    function irParaCadastro() {
+      window.location.href = "cadastro.html";
+    }
+
+    function irParaLista() {
+      window.location.href = "lista.html";
+    }
+    
+    function irParaPedidos() {
+      window.location.href = "pedidos.html";
+    }
+
+    function logout() {
+      firebase.auth().signOut().then(() => {
+        window.location.href = "index.html";
+      });
+    }
+  </script>
+</body>
+</html>

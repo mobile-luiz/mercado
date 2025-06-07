@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lista de Mercadorias</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+
+    h2 {
+      text-align: center;
+      margin: 30px 0 10px;
+    }
+
+    .conteudo {
+      width: 95%;
+      margin: 0 auto 50px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    img {
+      max-width: 100px;
+      max-height: 80px;
+      object-fit: cover;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .editar {
+      background-color: #ffc107;
+      color: black;
+      margin-bottom: 4px;
+    }
+
+    .excluir {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .modal-content input {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+    }
+
+    .modal-content button {
+      margin-top: 10px;
+      width: 48%;
+    }
+
+    .modal-content .botoes {
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <h2>📦 Mercadorias Cadastradas</h2>
+
+  <div class="conteudo">
+    <table>
+      <thead>
+        <tr>
+          <th>Imagem</th>
+          <th>Produto</th>
+          <th>Quantidade</th>
+          <th>Valor</th>
+          <th>Data/Hora</th>
+          <th>Usuário</th> <!-- nova coluna -->
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="listaProdutos"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal edição -->
+  <div id="modal">
+    <div class="modal-content">
+      <h3>✏️ Editar Mercadoria</h3>
+      <input type="text" id="editProduto" placeholder="Produto">
+      <input type="number" id="editQuantidade" placeholder="Quantidade">
+      <input type="number" id="editValor" placeholder="Valor">
+      <input type="file" id="editImagem">
+      <div class="botoes">
+        <button onclick="salvarEdicao()">Salvar</button>
+        <button onclick="fecharModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOYhFAUl9eytYMdLA-kyhNvrV5GrXgJQU",
+      authDomain: "mercado-8d654.firebaseapp.com",
+      projectId: "mercado-8d654",
+      storageBucket: "mercado-8d654.firebasestorage.app",
+      messagingSenderId: "269749626632",
+      appId: "1:269749626632:web:8c30643a1cc52b56672ebd",
+      measurementId: "G-9DGXDT4451"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    let idEditar = "";
+    let imagemAtual = "";
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        const uid = user.uid;
+        const emailDoUsuario = user.email; // capturamos o e-mail assim que o usuário estiver logado
+        const ref = firebase.database().ref("mercadorias/" + uid);
+
+        ref.on("value", snapshot => {
+          const tabela = document.getElementById("listaProdutos");
+          tabela.innerHTML = "";
+
+          if (!snapshot.exists()) {
+            tabela.innerHTML = "<tr><td colspan='7'>Nenhuma mercadoria cadastrada.</td></tr>";
+            return;
+          }
+
+          snapshot.forEach(child => {
+            const key = child.key;
+            const item = child.val();
+            const imagem = item.imagem || "https://via.placeholder.com/100x80?text=Sem+Imagem";
+            const dataHora = item.dataCadastro || "–";
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td><img src="${imagem}"></td>
+              <td>${item.produto}</td>
+              <td>${item.quantidade}</td>
+              <td>R$ ${item.valor}</td>
+              <td>${dataHora}</td>
+              <td>${emailDoUsuario}</td> <!-- mostramos aqui o e-mail do usuário logado -->
+              <td>
+                <button class="btn editar" onclick="abrirModal('${key}', '${item.produto}', '${item.quantidade}', '${item.valor}', '${imagem}')">Editar</button>
+                <button class="btn excluir" onclick="excluir('${key}')">Excluir</button>
+              </td>
+            `;
+            tabela.appendChild(tr);
+          });
+        });
+      } else {
+        // Se não estiver logado, redireciona para a página de login
+        window.location.href = "index.html";
+      }
+    });
+
+    function excluir(id) {
+      const user = firebase.auth().currentUser;
+      if (user && confirm("Deseja excluir este item?")) {
+        firebase.database().ref("mercadorias/" + user.uid + "/" + id).remove();
+      }
+    }
+
+    function abrirModal(id, produto, quantidade, valor, imagem) {
+      idEditar = id;
+      imagemAtual = imagem;
+      document.getElementById("editProduto").value = produto;
+      document.getElementById("editQuantidade").value = quantidade;
+      document.getElementById("editValor").value = valor;
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function fecharModal() {
+      document.getElementById("modal").style.display = "none";
+    }
+
+    async function salvarEdicao() {
+      const user = firebase.auth().currentUser;
+      const produto = document.getElementById("editProduto").value;
+      const quantidade = document.getElementById("editQuantidade").value;
+      const valor = document.getElementById("editValor").value;
+      const imagemNova = document.getElementById("editImagem").files[0];
+
+      let novaUrl = imagemAtual;
+
+      if (imagemNova) {
+        const refStorage = firebase.storage().ref(`mercadorias/${user.uid}/${Date.now()}_${imagemNova.name}`);
+        const snap = await refStorage.put(imagemNova);
+        novaUrl = await snap.ref.getDownloadURL();
+      }
+
+      // Atualiza somente os campos alterados no nodo específico
+      firebase.database().ref("mercadorias/" + user.uid + "/" + idEditar).update({
+        produto,
+        quantidade,
+        valor,
+        imagem: novaUrl
+      });
+
+      fecharModal();
+    }
+  </script>
+</body>
+</html>
