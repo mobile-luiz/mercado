@@ -2,21 +2,96 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><!-- viewport para mobile -->
   <title>Cadastro de Mercadoria</title>
   <style>
-    body { font-family: Arial; background: #f4f4f4; padding: 20px; }
-    .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
-    input, button { width: 100%; padding: 10px; margin: 8px 0; font-size: 1rem; }
-    button { cursor: pointer; }
-    #msg { text-align: center; margin-top: 10px; }
+    /* reset simples */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background: #fff;
+      width: 100%;
+      max-width: 500px;            /* largura máxima em desktop */
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+
+    .container h2 {
+      margin-bottom: 16px;
+      font-size: 1.5rem;
+      color: #333;
+      text-align: center;
+    }
+
+    .container input,
+    .container button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .container button {
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .container button:hover {
+      background: #45a049;
+    }
+
+    #msg {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 0.95rem;
+    }
+
+    /* para telas bem pequenas */
+    @media (max-width: 360px) {
+      .container {
+        padding: 16px;
+        border-radius: 8px;
+      }
+      .container h2 {
+        font-size: 1.3rem;
+      }
+      .container input,
+      .container button {
+        padding: 10px;
+        font-size: 0.9rem;
+      }
+      #msg {
+        font-size: 0.85rem;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>➕ Cadastro de Mercadoria</h2>
-    <input type="text" id="produto" placeholder="Nome do Produto">
+    <input type="text" id="produto"    placeholder="Nome do Produto">
     <input type="number" id="quantidade" placeholder="Quantidade">
-    <input type="text" id="valor" placeholder="Valor (Ex: 3,50)">
+    <input type="text" id="valor"      placeholder="Valor (Ex: 3,50)">
     <input type="file" id="foto" accept="image/*">
     <button id="btn-salvar">Salvar</button>
     <button id="btn-sair">Sair</button>
@@ -29,7 +104,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
   <script>
     // === CONFIGURAÇÃO DO SEU PROJETO FIREBASE ===
- const firebaseConfig = {
+    const firebaseConfig = {
       apiKey: "AIzaSyDOYhFAUl9eytYMdLA-kyhNvrV5GrXgJQU",
       authDomain: "mercado-8d654.firebaseapp.com",
       projectId: "mercado-8d654",
@@ -39,7 +114,6 @@
       measurementId: "G-9DGXDT4451"
     };
     // =============================================
-
     firebase.initializeApp(firebaseConfig);
 
     const produtoInput    = document.getElementById('produto');
@@ -68,9 +142,9 @@
     }
 
     btnSalvar.addEventListener('click', async () => {
-      const produto = produtoInput.value.trim();
+      const produto    = produtoInput.value.trim();
       const quantidade = quantidadeInput.value.trim();
-      const valorStr = valorInput.value.trim();
+      const valorStr   = valorInput.value.trim();
       const imagemFile = fotoInput.files[0];
 
       if (!produto || !quantidade || !valorStr) {
@@ -90,23 +164,23 @@
         // Upload da imagem
         let imageUrl = '';
         if (imagemFile) {
-          const ref = firebase.storage()
+          const ref  = firebase.storage()
             .ref(`mercadorias/${user.uid}/${Date.now()}_${imagemFile.name}`);
           const snap = await ref.put(imagemFile);
-          imageUrl = await snap.ref.getDownloadURL();
+          imageUrl   = await snap.ref.getDownloadURL();
         }
 
         // Converte e formata o valor
-        const valorNum = parseValor(valorStr);
+        const valorNum       = parseValor(valorStr);
         const valorFormatado = formatValor(valorNum);
 
         // Gera data em PT-BR
         const dataCadastro = new Date().toLocaleString('pt-BR', {
-          day:'2-digit', month:'2-digit', year:'numeric',
-          hour:'2-digit', minute:'2-digit', second:'2-digit'
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
         });
 
-        // Salva usando o valor já formatado como string
+        // Salva no Firebase
         await firebase.database()
           .ref(`mercadorias/${user.uid}`)
           .push({
@@ -118,17 +192,17 @@
           });
 
         msgElem.style.color = 'green';
-        msgElem.innerText = `✅ Cadastro realizado! Valor: R$ ${valorFormatado}`;
+        msgElem.innerText   = `✅ Cadastro realizado! Valor: R$ ${valorFormatado}`;
 
         // Limpa campos
-        produtoInput.value = '';
+        produtoInput.value    = '';
         quantidadeInput.value = '';
-        valorInput.value = '';
-        fotoInput.value = '';
+        valorInput.value      = '';
+        fotoInput.value       = '';
       } catch (err) {
         console.error(err);
         msgElem.style.color = 'red';
-        msgElem.innerText = 'Erro ao salvar: ' + err.message;
+        msgElem.innerText   = 'Erro ao salvar: ' + err.message;
       }
     });
 

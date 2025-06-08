@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <title>📦 Pedidos Realizados</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     :root {
       --primary: #0066cc;
@@ -25,7 +25,7 @@
       background: #fff;
       padding: 30px;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     h2 {
       text-align: center;
@@ -35,8 +35,20 @@
     }
     #statusCounts {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       font-size: 1rem;
+    }
+    .filter-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    #filterInput {
+      width: 300px;
+      max-width: 100%;
+      padding: 8px 12px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
     }
     table {
       width: 100%;
@@ -90,7 +102,6 @@
       transition: background 0.2s;
     }
     .btn-voltar:hover { background: #0052a3; }
-    /* Ações em linha e responsivas */
     .actions {
       display: flex;
       gap: 4px;
@@ -129,6 +140,7 @@
       .items-list li { font-size: 0.85rem; }
       .actions, .btn-voltar { width: 100%; margin-top: 6px; }
       .action-btn { flex: 1 1 45%; }
+      #filterInput { width: 100%; }
     }
   </style>
 </head>
@@ -136,6 +148,12 @@
   <div class="container">
     <h2>📦 Pedidos Realizados</h2>
     <div id="statusCounts">Carregando status...</div>
+
+    <div class="filter-container">
+      <input type="text" id="filterInput"
+             placeholder="🔍 Filtrar por cliente, CPF, status ou data">
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -145,20 +163,23 @@
         </tr>
       </thead>
       <tbody id="pedidosTabela">
-        <tr><td colspan="10" style="text-align:center;padding:20px">Carregando pedidos...</td></tr>
+        <tr>
+          <td colspan="10" style="text-align:center;padding:20px">
+            Carregando pedidos...
+          </td>
+        </tr>
       </tbody>
     </table>
     <div class="pagination" id="pagination"></div>
     <button class="btn-voltar" onclick="voltar()">⬅️ Voltar</button>
   </div>
 
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
   <script>
+    // ——— CONFIGURAÇÃO FIREBASE ———
     const firebaseConfig = {
       apiKey: "AIzaSyDOYhFAUl9eytYMdLA-kyhNvrV5GrXgJQU",
       authDomain: "mercado-8d654.firebaseapp.com",
@@ -171,79 +192,107 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    const tabela = document.getElementById('pedidosTabela');
-    const pagination = document.getElementById('pagination');
+    // refs
+    const tabela       = document.getElementById('pedidosTabela');
+    const pagination   = document.getElementById('pagination');
     const statusCounts = document.getElementById('statusCounts');
-    const pageSize = 10;
-    let allPedidos = [];
-    let currentPage = 1;
+    const filterInput  = document.getElementById('filterInput');
+    const pageSize     = 10;
+
+    let allPedidos = [], currentPage = 1, filterText = '';
+
+    filterInput.addEventListener('input', () => {
+      filterText = filterInput.value.trim().toLowerCase();
+      currentPage = 1;
+      render();
+    });
+
+    const formatCurrency = n => n.toFixed(2).replace('.', ',');
+    // exibimos a data diretamente: já está em "dd/mm/yyyy, HH:MM:SS"
 
     firebase.auth().onAuthStateChanged(user => {
       if (!user) return window.location.href = 'index.html';
       loadPedidos();
     });
 
-    function formatCurrency(num) {
-      return num.toFixed(2).replace('.', ',');
-    }
-
-    function formatDate(dtStr) {
-      return new Date(dtStr)
-        .toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    // converte string BR para Date
+    function parseBRDate(str) {
+      // "07/06/2025, 11:02:24"
+      const [date, time] = str.split(', ');
+      const [d,m,y] = date.split('/');
+      const [hh,mm,ss] = time.split(':');
+      return new Date(y, m-1, d, hh, mm, ss);
     }
 
     function loadPedidos() {
       firebase.database().ref('pedidos').once('value')
         .then(snap => {
-          const data = snap.val() || {};
-          allPedidos = Object.entries(data)
-            // Ordena por data (descendente)
-            .sort((a, b) => new Date(b[1].data) - new Date(a[1].data));
-          currentPage = 1; // reset page
+          allPedidos = Object.entries(snap.val()||{})
+            .sort((a,b) =>
+              parseBRDate(b[1].data) - parseBRDate(a[1].data)
+            );
+          currentPage = 1;
           render();
-        })
-        .catch(err => console.error(err));
+        });
     }
 
     function render() {
-      // contagem de status
-      const counts = { Pendente:0, Andamento:0, Saiu:0, Entregue:0 };
-      allPedidos.forEach(([_, p]) => counts[p.status || 'Pendente']++);
-      statusCounts.innerHTML = `Pendentes: ${counts.Pendente} &nbsp;|&nbsp; Andamento: ${counts.Andamento} &nbsp;|&nbsp; Saiu: ${counts.Saiu} &nbsp;|&nbsp; Entregue: ${counts.Entregue}`;
+      // 1) filtrar
+      const filtered = allPedidos.filter(([_,p]) => {
+        const nome   = p.cliente.nome.toLowerCase();
+        const cpf    = (p.cliente.cpf||'').toLowerCase();
+        const stat   = (p.status||'pendente').toLowerCase();
+        const dataBR = p.data.toLowerCase(); // "dd/mm/yyyy, hh:mm:ss"
+        return nome.includes(filterText)
+            || cpf.includes(filterText)
+            || stat.includes(filterText)
+            || dataBR.includes(filterText);
+      });
 
-      // paginação
-      const totalPages = Math.ceil(allPedidos.length / pageSize) || 1;
+      // 2) contagem
+      const counts = { Pendente:0, Andamento:0, Saiu:0, Entregue:0 };
+      filtered.forEach(([_,p]) => counts[p.status||'Pendente']++);
+      statusCounts.textContent =
+        `Pendentes: ${counts.Pendente} | Andamento: ${counts.Andamento}` +
+        ` | Saiu: ${counts.Saiu} | Entregue: ${counts.Entregue}`;
+
+      // 3) paginação
+      const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
       pagination.innerHTML = '';
-      for (let i = 1; i <= totalPages; i++) {
+      for (let i=1; i<=totalPages; i++) {
         const btn = document.createElement('button');
         btn.textContent = i;
-        btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
-        btn.onclick = () => { currentPage = i; render(); };
+        btn.className   = 'page-btn' + (i===currentPage?' active':'');
+        btn.onclick     = () => { currentPage=i; render(); };
         pagination.appendChild(btn);
       }
 
-      // tabela
+      // 4) tabela
       tabela.innerHTML = '';
-      const start = (currentPage - 1) * pageSize;
-      const slice = allPedidos.slice(start, start + pageSize);
+      const start = (currentPage-1)*pageSize;
+      const slice = filtered.slice(start, start+pageSize);
       if (!slice.length) {
-        tabela.innerHTML = '<tr><td colspan="10" style="text-align:center">Nenhum pedido encontrado.</td></tr>';
+        tabela.innerHTML = `
+          <tr>
+            <td colspan="10" style="text-align:center">Nenhum pedido encontrado.</td>
+          </tr>`;
         return;
       }
-      slice.forEach(([id, pedido]) => {
-        const { cliente, itens, total, data: dt, status } = pedido;
-        const itensHtml = itens.map(i => `<li>${i.nome} (x${i.quantidade}) - R$ ${formatCurrency(i.valorUnitario)}</li>`).join('');
+      slice.forEach(([id,p]) => {
+        const itensHtml = p.itens.map(i =>
+          `<li>${i.nome} (x${i.quantidade}) - R$ ${formatCurrency(i.valorUnitario)}</li>`
+        ).join('');
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td data-label="ID do Pedido">${id}</td>
-          <td data-label="Cliente">${cliente.nome}</td>
-          <td data-label="CPF">${cliente.cpf || '-'}</td>
-          <td data-label="Endereço">${cliente.endereco}</td>
-          <td data-label="Referência">${cliente.referencia}</td>
-          <td data-label="Data/Hora">${formatDate(dt)}</td>
+          <td data-label="Cliente">${p.cliente.nome}</td>
+          <td data-label="CPF">${p.cliente.cpf||'-'}</td>
+          <td data-label="Endereço">${p.cliente.endereco}</td>
+          <td data-label="Referência">${p.cliente.referencia}</td>
+          <td data-label="Data/Hora">${p.data}</td>
           <td data-label="Itens"><ul class="items-list">${itensHtml}</ul></td>
-          <td data-label="Total">R$ ${formatCurrency(total)}</td>
-          <td data-label="Status" class="status-cell">${status || 'Pendente'}</td>
+          <td data-label="Total">R$ ${formatCurrency(p.total)}</td>
+          <td data-label="Status" class="status-cell">${p.status||'Pendente'}</td>
           <td data-label="Ações">
             <div class="actions">
               <button class="action-btn" onclick="atualizarStatus('${id}','Pendente')">Pend.</button>
@@ -251,20 +300,19 @@
               <button class="action-btn" onclick="atualizarStatus('${id}','Saiu')">Saiu</button>
               <button class="action-btn" onclick="atualizarStatus('${id}','Entregue')">Entregue</button>
             </div>
-          </td>
-        `;
+          </td>`;
         tabela.appendChild(tr);
       });
     }
 
-    function atualizarStatus(id, st) {
-      firebase.database().ref('pedidos/' + id).update({ status: st })
-        .then(loadPedidos)
-        .catch(console.error);
+    function atualizarStatus(id,st) {
+      firebase.database().ref(`pedidos/${id}`).update({status:st})
+        .then(loadPedidos);
     }
 
-    function voltar() { window.location.href = 'index.html'; }
+    function voltar() {
+      window.location.href = 'index.html';
+    }
   </script>
-
 </body>
 </html>
