@@ -121,6 +121,13 @@
       text-align: center;
     }
     .action-btn:hover { background: #1ebe5a; }
+    /* Botão Excluir */
+    .action-btn.delete-btn {
+      background: #dc3545;
+    }
+    .action-btn.delete-btn:hover {
+      background: #c82333;
+    }
     @media (max-width: 768px) {
       body { padding: 10px; }
       .container { padding: 15px; }
@@ -150,8 +157,7 @@
     <div id="statusCounts">Carregando status...</div>
 
     <div class="filter-container">
-      <input type="text" id="filterInput"
-             placeholder="🔍 Filtrar por cliente, CPF, status ou data">
+      <input type="text" id="filterInput" placeholder="🔍 Filtrar por cliente, CPF, status ou data">
     </div>
 
     <table>
@@ -164,9 +170,7 @@
       </thead>
       <tbody id="pedidosTabela">
         <tr>
-          <td colspan="10" style="text-align:center;padding:20px">
-            Carregando pedidos...
-          </td>
+          <td colspan="10" style="text-align:center;padding:20px">Carregando pedidos...</td>
         </tr>
       </tbody>
     </table>
@@ -192,7 +196,6 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    // refs
     const tabela       = document.getElementById('pedidosTabela');
     const pagination   = document.getElementById('pagination');
     const statusCounts = document.getElementById('statusCounts');
@@ -208,16 +211,13 @@
     });
 
     const formatCurrency = n => n.toFixed(2).replace('.', ',');
-    // exibimos a data diretamente: já está em "dd/mm/yyyy, HH:MM:SS"
 
     firebase.auth().onAuthStateChanged(user => {
       if (!user) return window.location.href = 'index.html';
       loadPedidos();
     });
 
-    // converte string BR para Date
     function parseBRDate(str) {
-      // "07/06/2025, 11:02:24"
       const [date, time] = str.split(', ');
       const [d,m,y] = date.split('/');
       const [hh,mm,ss] = time.split(':');
@@ -228,35 +228,30 @@
       firebase.database().ref('pedidos').once('value')
         .then(snap => {
           allPedidos = Object.entries(snap.val()||{})
-            .sort((a,b) =>
-              parseBRDate(b[1].data) - parseBRDate(a[1].data)
-            );
+            .sort((a,b) => parseBRDate(b[1].data) - parseBRDate(a[1].data));
           currentPage = 1;
           render();
         });
     }
 
     function render() {
-      // 1) filtrar
       const filtered = allPedidos.filter(([_,p]) => {
         const nome   = p.cliente.nome.toLowerCase();
         const cpf    = (p.cliente.cpf||'').toLowerCase();
         const stat   = (p.status||'pendente').toLowerCase();
-        const dataBR = p.data.toLowerCase(); // "dd/mm/yyyy, hh:mm:ss"
+        const dataBR = p.data.toLowerCase();
         return nome.includes(filterText)
             || cpf.includes(filterText)
             || stat.includes(filterText)
             || dataBR.includes(filterText);
       });
 
-      // 2) contagem
       const counts = { Pendente:0, Andamento:0, Saiu:0, Entregue:0 };
       filtered.forEach(([_,p]) => counts[p.status||'Pendente']++);
       statusCounts.textContent =
         `Pendentes: ${counts.Pendente} | Andamento: ${counts.Andamento}` +
         ` | Saiu: ${counts.Saiu} | Entregue: ${counts.Entregue}`;
 
-      // 3) paginação
       const totalPages = Math.max(1, Math.ceil(filtered.length/pageSize));
       pagination.innerHTML = '';
       for (let i=1; i<=totalPages; i++) {
@@ -267,15 +262,12 @@
         pagination.appendChild(btn);
       }
 
-      // 4) tabela
       tabela.innerHTML = '';
       const start = (currentPage-1)*pageSize;
       const slice = filtered.slice(start, start+pageSize);
       if (!slice.length) {
         tabela.innerHTML = `
-          <tr>
-            <td colspan="10" style="text-align:center">Nenhum pedido encontrado.</td>
-          </tr>`;
+          <tr><td colspan="10" style="text-align:center">Nenhum pedido encontrado.</td></tr>`;
         return;
       }
       slice.forEach(([id,p]) => {
@@ -299,15 +291,27 @@
               <button class="action-btn" onclick="atualizarStatus('${id}','Andamento')">And.</button>
               <button class="action-btn" onclick="atualizarStatus('${id}','Saiu')">Saiu</button>
               <button class="action-btn" onclick="atualizarStatus('${id}','Entregue')">Entregue</button>
+              <button class="action-btn delete-btn" onclick="excluirPedido('${id}')">✖️ Excluir</button>
             </div>
           </td>`;
         tabela.appendChild(tr);
       });
     }
 
-    function atualizarStatus(id,st) {
-      firebase.database().ref(`pedidos/${id}`).update({status:st})
+    function atualizarStatus(id, st) {
+      firebase.database().ref(`pedidos/${id}`).update({status: st})
         .then(loadPedidos);
+    }
+
+    function excluirPedido(id) {
+      if (!confirm(`Tem certeza que deseja excluir o pedido ${id}?`)) return;
+      firebase.database().ref(`pedidos/${id}`)
+        .remove()
+        .then(loadPedidos)
+        .catch(err => {
+          console.error('Erro ao excluir pedido:', err);
+          alert('Não foi possível excluir o pedido. Tente novamente.');
+        });
     }
 
     function voltar() {
